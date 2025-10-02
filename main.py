@@ -56,11 +56,15 @@ EXPECTED = build_expected_map()
 
 # helper to stringify a pynput key
 def key_to_str(key):
-    if isinstance(key, keyboard.KeyCode):
-        return key.char
-    else:
-        # Key object
-        return f'Key.{key.name}' if hasattr(key, 'name') else str(key)
+    try:
+        if isinstance(key, keyboard.KeyCode):
+            # key.char may be None for some keys; fall back to str(key)
+            return key.char if getattr(key, 'char', None) is not None else str(key)
+        else:
+            # Key object (special keys)
+            return f'Key.{key.name}' if hasattr(key, 'name') else str(key)
+    except Exception:
+        return str(key)
 
 # Listener state
 last_key = None
@@ -80,6 +84,12 @@ def guided_mode():
     all_labels = LETTER_KEYS + DIGIT_KEYS + SPECIAL_KEYS + FUNCTION_KEYS
     ok = []
     mismatch = []
+    # reset listener state
+    pressed_keys.clear()
+    global last_key
+    last_key = None
+    key_event.clear()
+
     with keyboard.Listener(on_press=on_press) as listener:
         try:
             for label in all_labels:
@@ -106,6 +116,12 @@ def guided_mode():
 def auto_mode(duration=20):
     print(f'AUTO MODE: Press any keys for {duration} seconds. Press ESC to finish early.')
     time.sleep(0.2)
+    # reset state
+    pressed_keys.clear()
+    global last_key
+    last_key = None
+    key_event.clear()
+
     with keyboard.Listener(on_press=on_press) as listener:
         t0 = time.time()
         try:
@@ -113,7 +129,7 @@ def auto_mode(duration=20):
                 if key_event.wait(timeout=0.1):
                     key_event.clear()
                     # if escape pressed, finish early
-                    if last_key and (last_key.lower() in ('key.esc', 'key.escape', 'esc', '\x1b')):
+                    if last_key and (str(last_key).lower() in ('key.esc', 'key.escape', 'esc', '\x1b')):
                         print('Escape pressed — finishing early')
                         break
                 if time.time() - t0 >= duration:
@@ -123,7 +139,8 @@ def auto_mode(duration=20):
         finally:
             listener.stop()
     # compute which expected keys were pressed
-    pressed_set = set(pressed_keys.keys())
+    # filter None and normalize
+    pressed_set = set(k for k in pressed_keys.keys() if k is not None)
     ok = []
     missing = []
     for label, expected in EXPECTED.items():
