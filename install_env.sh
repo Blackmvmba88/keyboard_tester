@@ -7,4 +7,4 @@ if [ -f requirements.txt ]; then
   pip install -r requirements.txt
 fi
 
-echo "Virtualenv created at .venv. Activate it with: source .venv/bin/activate"
+echo "Entorno virtual creado en .venv. Actívalo con: source .venv/bin/activate"

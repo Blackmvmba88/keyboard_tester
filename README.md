@@ -1,38 +1,38 @@
-Keyboard Tester
+Probador de Teclado
 
-Small utility to check whether keys on your keyboard are detected correctly.
+Utilidad pequeña para verificar si las teclas de tu teclado se detectan correctamente.
 
-Modes
-- guided: prompts for each key and waits for input
-- auto: record keypresses for N seconds and report which expected keys were not seen
-- simulate: uses pynput to simulate typing (useful to test the typing simulation)
+Modos
+- guiado: solicita cada tecla y espera la entrada
+- auto: registra pulsaciones de teclas durante N segundos e informa qué teclas esperadas no se detectaron
+- simular: usa pynput para simular escritura (útil para probar la simulación de escritura)
 
-Permissions (macOS)
-- You must grant the Terminal/Input Monitoring and Accessibility permissions for the script to capture keys.
+Permisos (macOS)
+- Debes otorgar permisos de Terminal/Monitoreo de Entrada y Accesibilidad para que el script capture las teclas.
 
-Run
+Ejecutar
 
 ```bash
 python3 -m pip install -r requirements.txt
-python3 main.py guided
+python3 main.py guiado
 ```
 
-Roadmap
--------
+Hoja de Ruta
+------------
 
-- Improve GUI: add a Tkinter or Electron-based UI to guide tests and show a keyboard heatmap.
-- Auto-detection improvements: support multiple layouts (es/US/ISO) and map physical key positions.
-- CI/tests: unit tests for parsing/mapping functions and a sample integration test using the `simulate` mode.
-- Export/Analysis: allow CSV export (monitor.py) and a small viewer to analyze missed keys over time.
+- Mejorar GUI: agregar una interfaz de usuario basada en Tkinter o Electron para guiar las pruebas y mostrar un mapa de calor del teclado.
+- Mejoras de detección automática: soporte para múltiples diseños (es/US/ISO) y mapeo de posiciones físicas de las teclas.
+- CI/pruebas: pruebas unitarias para funciones de análisis/mapeo y una prueba de integración de muestra usando el modo `simular`.
+- Exportar/Análisis: permitir exportación CSV (monitor.py) y un pequeño visor para analizar teclas perdidas a lo largo del tiempo.
 
-Monitor script
---------------
+Script de Monitoreo
+-------------------
 
-`monitor.py` logs key press/release events to a CSV file and prints a short summary. Example:
+`monitor.py` registra eventos de presión/liberación de teclas en un archivo CSV e imprime un resumen breve. Ejemplo:
 
 ```bash
 python3 monitor.py --out keyboard_log.csv --duration 60
 ```
 
-Notes: grant Accessibility/Input Monitoring permissions if required by your OS.
+Notas: otorga permisos de Accesibilidad/Monitoreo de Entrada si lo requiere tu sistema operativo.
 

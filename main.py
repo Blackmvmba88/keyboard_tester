@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Keyboard tester
+Probador de teclado
 
-Usage:
-  python3 main.py guided   # guided mode: the script asks you to press each key
-  python3 main.py auto     # auto mode: press any keys for N seconds to detect missing keys
-  python3 main.py simulate # optional: the program will simulate typing (uses pynput.Controller)
+Uso:
+  python3 main.py guiado   # modo guiado: el script te pide presionar cada tecla
+  python3 main.py auto     # modo auto: presiona cualquier tecla durante N segundos para detectar teclas faltantes
+  python3 main.py simular  # opcional: el programa simulará escritura (usa pynput.Controller)
 
-Notes:
-- On macOS you must grant Accessibility / Input Monitoring permissions to the terminal running this script.
-- Install dependencies: pip install -r requirements.txt
+Notas:
+- En macOS debes otorgar permisos de Accesibilidad / Monitoreo de Entrada al terminal ejecutando este script.
+- Instalar dependencias: pip install -r requirements.txt
 """
 
 import sys
@@ -20,10 +20,10 @@ from collections import defaultdict
 try:
     from pynput import keyboard
 except Exception as e:
-    print("Missing dependency 'pynput'. Install with: pip install pynput")
+    print("Falta la dependencia 'pynput'. Instalar con: pip install pynput")
     raise
 
-# list of keys we'll check (labels)
+# lista de teclas que verificaremos (etiquetas)
 LETTER_KEYS = [chr(c) for c in range(ord('A'), ord('Z')+1)]
 DIGIT_KEYS = [str(d) for d in range(0, 10)]
 SPECIAL_KEYS = [
@@ -32,7 +32,7 @@ SPECIAL_KEYS = [
 ]
 FUNCTION_KEYS = [f'F{i}' for i in range(1, 13)]
 
-# build expected key map: label -> set of acceptable representations
+# construir mapa de teclas esperadas: etiqueta -> conjunto de representaciones aceptables
 def build_expected_map():
     m = {}
     for L in LETTER_KEYS:
@@ -54,19 +54,19 @@ def build_expected_map():
 
 EXPECTED = build_expected_map()
 
-# helper to stringify a pynput key
+# función auxiliar para convertir una tecla pynput a cadena
 def key_to_str(key):
     try:
         if isinstance(key, keyboard.KeyCode):
-            # key.char may be None for some keys; fall back to str(key)
+            # key.char puede ser None para algunas teclas; usar str(key) como alternativa
             return key.char if getattr(key, 'char', None) is not None else str(key)
         else:
-            # Key object (special keys)
+            # Objeto Key (teclas especiales)
             return f'Key.{key.name}' if hasattr(key, 'name') else str(key)
     except Exception:
         return str(key)
 
-# Listener state
+# Estado del listener
 last_key = None
 key_event = threading.Event()
 pressed_keys = defaultdict(int)
@@ -79,12 +79,12 @@ def on_press(key):
     key_event.set()
 
 def guided_mode():
-    print('GUIDED MODE: For each prompt, press the requested key. Press CTRL+C to abort.')
+    print('MODO GUIADO: Para cada solicitud, presiona la tecla indicada. Presiona CTRL+C para cancelar.')
     time.sleep(0.2)
     all_labels = LETTER_KEYS + DIGIT_KEYS + SPECIAL_KEYS + FUNCTION_KEYS
     ok = []
     mismatch = []
-    # reset listener state
+    # reiniciar estado del listener
     pressed_keys.clear()
     global last_key
     last_key = None
@@ -93,30 +93,30 @@ def guided_mode():
     with keyboard.Listener(on_press=on_press) as listener:
         try:
             for label in all_labels:
-                print('\nPlease press:', label)
+                print('\nPor favor presiona:', label)
                 key_event.clear()
-                # wait for a key press
+                # esperar una pulsación de tecla
                 key_event.wait()
                 got = last_key
                 expected = EXPECTED.get(label, {label})
-                print('Got:', repr(got))
+                print('Recibido:', repr(got))
                 if got in expected:
                     ok.append(label)
                     print('OK')
                 else:
                     mismatch.append((label, got))
-                    print('Mismatch: expected one of', expected)
+                    print('No coincide: se esperaba uno de', expected)
                 time.sleep(0.1)
         except KeyboardInterrupt:
-            print('\nAborted by user')
+            print('\nCancelado por el usuario')
         finally:
             listener.stop()
     print_summary(ok, mismatch)
 
 def auto_mode(duration=20):
-    print(f'AUTO MODE: Press any keys for {duration} seconds. Press ESC to finish early.')
+    print(f'MODO AUTO: Presiona cualquier tecla durante {duration} segundos. Presiona ESC para finalizar antes.')
     time.sleep(0.2)
-    # reset state
+    # reiniciar estado
     pressed_keys.clear()
     global last_key
     last_key = None
@@ -128,18 +128,18 @@ def auto_mode(duration=20):
             while True:
                 if key_event.wait(timeout=0.1):
                     key_event.clear()
-                    # if escape pressed, finish early
+                    # si se presiona escape, finalizar antes
                     if last_key and (str(last_key).lower() in ('key.esc', 'key.escape', 'esc', '\x1b')):
-                        print('Escape pressed — finishing early')
+                        print('Escape presionado — finalizando antes')
                         break
                 if time.time() - t0 >= duration:
                     break
         except KeyboardInterrupt:
-            print('\nAborted by user')
+            print('\nCancelado por el usuario')
         finally:
             listener.stop()
-    # compute which expected keys were pressed
-    # filter None and normalize
+    # calcular qué teclas esperadas fueron presionadas
+    # filtrar None y normalizar
     pressed_set = set(k for k in pressed_keys.keys() if k is not None)
     ok = []
     missing = []
@@ -148,33 +148,33 @@ def auto_mode(duration=20):
             ok.append(label)
         else:
             missing.append(label)
-    print('\nRESULTS:')
-    print('Detected pressed keys (sample):', list(pressed_set)[:30])
+    print('\nRESULTADOS:')
+    print('Teclas presionadas detectadas (muestra):', list(pressed_set)[:30])
     print('OK:', ok)
-    print('MISSING:', missing)
+    print('FALTANTES:', missing)
 
-def simulate_mode(text='The quick brown fox jumps over the lazy dog\n'):
-    print('SIMULATE MODE: The program will type some sample text (you may see it in the active window).')
+def simulate_mode(text='El veloz murciélago hindú comía feliz cardillo y kiwi\n'):
+    print('MODO SIMULAR: El programa escribirá texto de muestra (puedes verlo en la ventana activa).')
     from pynput.keyboard import Controller
     kb = Controller()
     time.sleep(1.0)
     kb.type(text)
-    print('Done typing sample text.')
+    print('Escritura de texto de muestra completada.')
 
 def print_summary(ok, mismatch):
-    print('\nSUMMARY:')
-    print('OK keys:', ok)
+    print('\nRESUMEN:')
+    print('Teclas OK:', ok)
     if mismatch:
-        print('Mismatches (expected -> got):')
+        print('No coinciden (esperado -> recibido):')
         for exp, got in mismatch:
             print(f'  {exp} -> {got}')
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: python3 main.py [guided|auto|simulate]')
+        print('Uso: python3 main.py [guiado|auto|simular]')
         return
     mode = sys.argv[1]
-    if mode == 'guided':
+    if mode in ('guiado', 'guided'):
         guided_mode()
     elif mode == 'auto':
         dur = 20
@@ -184,10 +184,10 @@ def main():
             except Exception:
                 pass
         auto_mode(duration=dur)
-    elif mode == 'simulate':
+    elif mode in ('simular', 'simulate'):
         simulate_mode()
     else:
-        print('Unknown mode:', mode)
+        print('Modo desconocido:', mode)
 
 if __name__ == '__main__':
     main()
