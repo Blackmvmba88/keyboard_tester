@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Keyboard Tester GUI (Tkinter)
+GUI del Probador de Teclado (Tkinter)
 
-Features:
-- Visual keyboard map (simple QWERTY) drawn on a Canvas
-- Highlights keys when pressed (uses pynput listener in background)
-- Guided test: shows next key to press and marks OK/MISS
-- Export results to CSV
+Características:
+- Mapa visual del teclado (QWERTY simple) dibujado en un Canvas
+- Resalta teclas cuando se presionan (usa listener de pynput en segundo plano)
+- Prueba guiada: muestra la próxima tecla a presionar y marca OK/FALTA
+- Exporta resultados a CSV
 
-Run:
+Ejecutar:
   python3 gui.py
 
-Permissions:
-- On macOS give Input Monitoring/Accessibility to the terminal or the Python app.
+Permisos:
+- En macOS otorga permisos de Monitoreo de Entrada/Accesibilidad al terminal o a la aplicación Python.
 """
 import sys
 import threading
@@ -23,16 +23,16 @@ try:
     import tkinter as tk
     from tkinter import ttk, messagebox, filedialog
 except Exception:
-    print('Tkinter not available. On some systems install python3-tk or use system Python.')
+    print('Tkinter no está disponible. En algunos sistemas instala python3-tk o usa el Python del sistema.')
     raise
 
 try:
     from pynput import keyboard
 except Exception:
-    print("Missing dependency 'pynput'. Install with: pip install pynput")
+    print("Falta la dependencia 'pynput'. Instalar con: pip install pynput")
     raise
 
-# Simple QWERTY layout rows (labels)
+# Distribución QWERTY simple por filas (etiquetas)
 LAYOUT = [
     ['ESC','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12'],
     ['`','1','2','3','4','5','6','7','8','9','0','-','=','BACK'],
@@ -42,7 +42,7 @@ LAYOUT = [
     ['CTRL','META','ALT','SPACE','ALT','META','MENU','CTRL']
 ]
 
-# mapping from label to canvas rectangle id
+# mapeo de etiqueta a id de rectángulo en canvas
 key_rects = {}
 key_labels = {}
 pressed_counts = {}
@@ -50,28 +50,28 @@ pressed_counts = {}
 class KeyboardGUI(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Keyboard Tester GUI')
+        self.title('GUI del Probador de Teclado')
         self.geometry('1000x400')
         self.protocol('WM_DELETE_WINDOW', self.on_close)
         self.canvas = tk.Canvas(self, bg='black')
         self.canvas.pack(fill='both', expand=True)
-        self.status = tk.StringVar(value='Idle')
+        self.status = tk.StringVar(value='Inactivo')
         self.toolbar = ttk.Frame(self)
         self.toolbar.pack(side='bottom', fill='x')
         ttk.Label(self.toolbar, textvariable=self.status).pack(side='left', padx=6)
-        ttk.Button(self.toolbar, text='Start Guided', command=self.start_guided).pack(side='right', padx=6)
-        ttk.Button(self.toolbar, text='Export CSV', command=self.export_csv).pack(side='right')
+        ttk.Button(self.toolbar, text='Iniciar Guiado', command=self.start_guided).pack(side='right', padx=6)
+        ttk.Button(self.toolbar, text='Exportar CSV', command=self.export_csv).pack(side='right')
         self._draw_keyboard()
         self.listener = None
         self.running = True
         self.guided_thread = None
         self.guided_queue = []
         self.results = []
-        # start listener in background
+        # iniciar listener en segundo plano
         self._start_listener()
 
     def _draw_keyboard(self):
-        # layout drawing with simple sizes
+        # dibujo de distribución con tamaños simples
         w = self.canvas.winfo_width() or 1000
         h = self.canvas.winfo_height() or 300
         x = 10
@@ -102,14 +102,14 @@ class KeyboardGUI(tk.Tk):
         L = label.upper()
         if L in key_rects:
             self.canvas.itemconfig(key_rects[L], fill=color)
-            # after short delay remove highlight
+            # después de un breve retraso quitar el resaltado
             self.after(150, lambda: self.canvas.itemconfig(key_rects[L], fill='#222'))
 
     def _on_press_gui(self, key_str):
-        # run in GUI thread
+        # ejecutar en hilo GUI
         self.highlight_key(key_str, color='#0a0')
         pressed_counts[key_str.upper()] = pressed_counts.get(key_str.upper(), 0) + 1
-        self.status.set(f'Last: {key_str}')
+        self.status.set(f'Última: {key_str}')
 
     def _start_listener(self):
         def on_press(key):
@@ -117,9 +117,9 @@ class KeyboardGUI(tk.Tk):
                 k = key.char if hasattr(key, 'char') and key.char is not None else f'Key.{key.name}'
             except Exception:
                 k = str(key)
-            # send to GUI thread
+            # enviar al hilo GUI
             self.after(0, lambda ks=k: self._on_press_gui(ks))
-            # also add to guided queue if active
+            # también agregar a la cola guiada si está activa
             if self.guided_queue is not None:
                 self.guided_queue.append(k)
 
@@ -133,9 +133,9 @@ class KeyboardGUI(tk.Tk):
 
     def start_guided(self):
         if self.guided_thread and self.guided_thread.is_alive():
-            messagebox.showinfo('Guided', 'Guided test already running')
+            messagebox.showinfo('Guiado', 'La prueba guiada ya está en ejecución')
             return
-        # build a sequence of keys to test
+        # construir una secuencia de teclas para probar
         seq = []
         for row in LAYOUT:
             for label in row:
@@ -147,13 +147,13 @@ class KeyboardGUI(tk.Tk):
 
     def _run_guided(self, seq):
         for label in seq:
-            # prompt GUI
-            self.after(0, lambda lab=label: self.status.set(f'Press: {lab}'))
-            # wait up to 5 seconds for that key
+            # solicitar en GUI
+            self.after(0, lambda lab=label: self.status.set(f'Presiona: {lab}'))
+            # esperar hasta 5 segundos por esa tecla
             found = False
             t0 = time.time()
             while time.time() - t0 < 5:
-                # check guided_queue
+                # verificar guided_queue
                 for k in list(self.guided_queue):
                     if k is None:
                         continue
@@ -163,21 +163,21 @@ class KeyboardGUI(tk.Tk):
                 if found:
                     break
                 time.sleep(0.05)
-            self.results.append((label, 'OK' if found else 'MISS'))
-            # visual mark
+            self.results.append((label, 'OK' if found else 'FALTA'))
+            # marca visual
             self.after(0, lambda lab=label, ok=found: self._mark_result(lab, ok))
-            # clear queue
+            # limpiar cola
             self.guided_queue.clear()
             time.sleep(0.2)
-        # finished
-        self.after(0, lambda: self.status.set('Guided test finished'))
-        # show summary
+        # finalizado
+        self.after(0, lambda: self.status.set('Prueba guiada finalizada'))
+        # mostrar resumen
         ok = sum(1 for _,r in self.results if r=='OK')
         total = len(self.results)
-        self.after(0, lambda: messagebox.showinfo('Finished', f'OK {ok}/{total}'))
+        self.after(0, lambda: messagebox.showinfo('Finalizado', f'OK {ok}/{total}'))
 
     def _label_matches(self, label, observed):
-        # normalize
+        # normalizar
         lab = label.upper()
         obs = str(observed)
         if lab == 'BACK' and obs in ('Key.backspace','\x7f'):
@@ -186,10 +186,10 @@ class KeyboardGUI(tk.Tk):
             return True
         if lab == 'ENTER' and obs in ('\n','\r','Key.enter'):
             return True
-        # direct char match
+        # coincidencia directa de carácter
         if len(lab) == 1 and obs.lower() == lab.lower():
             return True
-        # key.Name match
+        # coincidencia key.Name
         if obs.startswith('Key.') and lab in obs.upper():
             return True
         return False
@@ -207,13 +207,13 @@ class KeyboardGUI(tk.Tk):
             return
         with open(path, 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['key','count'])
+            writer.writerow(['tecla','cantidad'])
             for k,c in pressed_counts.items():
                 writer.writerow([k,c])
-        messagebox.showinfo('Export', f'Exported to {path}')
+        messagebox.showinfo('Exportar', f'Exportado a {path}')
 
     def on_close(self):
-        if messagebox.askokcancel('Quit', 'Quit?'):
+        if messagebox.askokcancel('Salir', '¿Salir?'):
             try:
                 if self.listener:
                     self.listener.stop()

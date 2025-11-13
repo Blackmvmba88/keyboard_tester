@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Apply a safe example remap using hidutil on macOS: make CapsLock -> Control
-# To revert, run reset_hidutil.sh
+# Aplicar un remapeo de ejemplo seguro usando hidutil en macOS: convertir BloqMayús -> Control
+# Para revertir, ejecuta reset_hidutil.sh
 
 set -euo pipefail
 if [[ "$(uname)" != "Darwin" ]]; then
-  echo "This script is for macOS (Darwin) only." >&2
+  echo "Este script es solo para macOS (Darwin)." >&2
   exit 2
 fi
 
-# Mapping: Caps Lock (0x700000039) -> Left Control (0x7000000e0)
+# Mapeo: Bloq Mayús (0x700000039) -> Control Izquierdo (0x7000000e0)
 MAP='{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x7000000e0}]}'
-echo "Applying remap: CapsLock -> Left Control"
+echo "Aplicando remapeo: BloqMayús -> Control Izquierdo"
 hidutil property --set "$MAP"
-echo "Applied. To revert run reset_hidutil.sh"
+echo "Aplicado. Para revertir ejecuta reset_hidutil.sh"
