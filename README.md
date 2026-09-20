@@ -36,3 +36,29 @@ python3 monitor.py --out keyboard_log.csv --duration 60
 
 Notas: otorga permisos de Accesibilidad/Monitoreo de Entrada si lo requiere tu sistema operativo.
 
+BLACKMAMBA TYPE
+---------------
+
+El shell de escritura vive en `blackmamba_type/` y puede iniciarse con:
+
+```bash
+python3 run_blackmamba_type.py
+```
+
+### Iteration 02 — Personalization
+
+Se añadieron funciones para convertir el prototipo en una máquina de escribir personal:
+
+- Temas persistentes: **Mamba**, **Neon**, **Ocean** y **Paper**.
+- Dock editable **MY EMOTICONS** con emojis y emoticons de texto.
+- Alta y baja de emoticons; la paleta se guarda en `~/.blackmamba_type/settings.json`.
+- Doble clic o botón **Insert** para colocar el emoticon en la posición actual del cursor.
+- **Focus mode** para ocultar el panel lateral y dejar sólo el área de escritura.
+- **Copy all** y **Clear** como acciones rápidas.
+- Atajos:
+  - `Ctrl+Shift+F`: activar/desactivar Focus mode.
+  - `Ctrl+Shift+E`: insertar el emoticon seleccionado.
+  - `Ctrl+Shift+T`: cambiar al siguiente tema.
+- Se conservan las funciones de Iteration 01: predicción por prefijo, WPM, caracteres por segundo, ahorro de teclas y sparkline de velocidad.
+
+La configuración es local y no requiere cuenta ni servicio externo.
