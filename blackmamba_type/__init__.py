@@ -1,3 +1,3 @@
 """BLACKMAMBA TYPE package."""
 
-__all__ = ["app", "metrics", "predictor", "preferences"]
+__all__ = ["app", "learning", "metrics", "predictor", "preferences"]
