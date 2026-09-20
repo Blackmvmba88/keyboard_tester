@@ -4,12 +4,14 @@ import sys
 from collections import deque
 
 from PySide6.QtCore import QPoint, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QKeyEvent, QPainter, QPen, QTextCursor
+from PySide6.QtGui import QColor, QFont, QKeyEvent, QKeySequence, QPainter, QPen, QShortcut, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -22,71 +24,80 @@ from PySide6.QtWidgets import (
 
 from .metrics import SessionMetrics
 from .predictor import PrefixPredictor
+from .preferences import THEMES, UserPreferences
 
 
-APP_QSS = """
-QWidget {
-    background: #090b10;
-    color: #e8edf5;
+def build_qss(theme_name: str) -> str:
+    p = THEMES.get(theme_name, THEMES["Mamba"])
+    return f"""
+QWidget {{
+    background: {p["bg"]};
+    color: {p["text"]};
     font-family: "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
-}
-QMainWindow { background: #090b10; }
-QFrame#TopBar {
-    background: #0e1219;
-    border: 1px solid #1c2430;
+}}
+QMainWindow {{ background: {p["bg"]}; }}
+QFrame#TopBar {{
+    background: {p["panel"]};
+    border: 1px solid {p["border"]};
     border-radius: 14px;
-}
-QLabel#Brand {
-    color: #f2f6fb;
+}}
+QLabel#Brand {{
+    color: {p["bright"]};
     font-size: 18px;
     font-weight: 700;
     letter-spacing: 1px;
-}
-QLabel#Mode {
-    color: #73f6b1;
+}}
+QLabel#Mode {{
+    color: {p["accent"]};
     font-size: 11px;
     font-weight: 700;
-}
-QLabel#Subtle {
-    color: #748092;
+}}
+QLabel#Subtle {{
+    color: {p["muted"]};
     font-size: 11px;
-}
-QFrame#EditorCard, QFrame#MetricCard, QFrame#CandidateCard {
-    background: #0e1219;
-    border: 1px solid #1c2430;
+}}
+QFrame#EditorCard, QFrame#MetricCard, QFrame#CandidateCard, QFrame#EmoticonCard {{
+    background: {p["panel"]};
+    border: 1px solid {p["border"]};
     border-radius: 16px;
-}
-QPlainTextEdit#Editor {
+}}
+QPlainTextEdit#Editor {{
     background: transparent;
-    color: #f8fafc;
+    color: {p["bright"]};
     border: none;
-    selection-background-color: #263343;
+    selection-background-color: {p["selection"]};
     font-family: "SF Mono", "Menlo", monospace;
     font-size: 24px;
     padding: 18px;
-}
-QListWidget#Candidates {
+}}
+QListWidget#Candidates, QListWidget#Emoticons {{
     background: transparent;
     border: none;
     outline: none;
     font-size: 15px;
-}
-QListWidget#Candidates::item {
-    padding: 10px 12px;
+}}
+QListWidget#Candidates::item, QListWidget#Emoticons::item {{
+    padding: 9px 11px;
     margin: 2px 0px;
     border-radius: 9px;
-}
-QListWidget#Candidates::item:selected {
-    background: #17251f;
-    color: #8cffbd;
-}
-QPushButton {
-    background: #141a23;
-    border: 1px solid #273140;
+}}
+QListWidget#Candidates::item:selected, QListWidget#Emoticons::item:selected {{
+    background: {p["accent_soft"]};
+    color: {p["accent"]};
+}}
+QPushButton, QComboBox, QLineEdit {{
+    background: {p["panel_alt"]};
+    color: {p["text"]};
+    border: 1px solid {p["border"]};
     border-radius: 9px;
-    padding: 8px 12px;
-}
-QPushButton:hover { border-color: #4b5d74; }
+    padding: 8px 10px;
+}}
+QPushButton:hover, QComboBox:hover, QLineEdit:hover {{
+    border-color: {p["accent"]};
+}}
+QLineEdit:focus, QComboBox:focus {{
+    border-color: {p["accent"]};
+}}
 """
 
 
@@ -106,7 +117,11 @@ class Sparkline(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = self.rect().adjusted(4, 4, -4, -4)
-        painter.setPen(QPen(QColor("#1c2430"), 1))
+        theme = THEMES.get(
+            getattr(self.window(), "preferences", UserPreferences()).theme,
+            THEMES["Mamba"],
+        )
+        painter.setPen(QPen(QColor(theme["border"]), 1))
         painter.drawRoundedRect(QRectF(rect), 8, 8)
         if len(self.values) < 2:
             return
@@ -120,7 +135,7 @@ class Sparkline(QWidget):
             y = rect.bottom() - (value / vmax) * max(rect.height() - 6, 1)
             points.append(QPoint(int(x), int(y)))
 
-        painter.setPen(QPen(QColor("#6ef0a6"), 2))
+        painter.setPen(QPen(QColor(theme["accent"]), 2))
         for a, b in zip(points, points[1:]):
             painter.drawLine(a, b)
 
@@ -174,14 +189,16 @@ class WriterEdit(QPlainTextEdit):
 
 
 class BlackMambaTypeWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, preferences: UserPreferences | None = None) -> None:
         super().__init__()
-        self.setWindowTitle("BLACKMAMBA TYPE — Iteration 01")
-        self.resize(1180, 760)
+        self.setWindowTitle("BLACKMAMBA TYPE — Iteration 02")
+        self.resize(1240, 800)
 
+        self.preferences = preferences or UserPreferences.load()
         self.predictor = PrefixPredictor()
         self.metrics = SessionMetrics()
         self._candidate_visible = True
+        self._focus_mode = False
 
         root = QWidget()
         self.setCentralWidget(root)
@@ -195,7 +212,7 @@ class BlackMambaTypeWindow(QMainWindow):
         top_layout.setContentsMargins(16, 12, 16, 12)
         brand = QLabel("BLACKMAMBA TYPE")
         brand.setObjectName("Brand")
-        mode = QLabel("TYPE WORLD · LOCAL")
+        mode = QLabel("TYPE WORLD · LOCAL · ITER 02")
         mode.setObjectName("Mode")
         hint = QLabel("↑ ↓ choose · Tab / Enter accept · Esc dismiss")
         hint.setObjectName("Subtle")
@@ -204,6 +221,16 @@ class BlackMambaTypeWindow(QMainWindow):
         top_layout.addWidget(mode)
         top_layout.addStretch(1)
         top_layout.addWidget(hint)
+
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(THEMES.keys())
+        self.theme_combo.setCurrentText(self.preferences.theme)
+        self.theme_combo.currentTextChanged.connect(self._change_theme)
+        top_layout.addWidget(self.theme_combo)
+
+        self.focus_button = QPushButton("Focus")
+        self.focus_button.clicked.connect(self.toggle_focus_mode)
+        top_layout.addWidget(self.focus_button)
         outer.addWidget(top)
 
         body = QHBoxLayout()
@@ -231,11 +258,24 @@ class BlackMambaTypeWindow(QMainWindow):
             "Escribe aquí…\n\nPrueba:  pro\nLuego usa ↑ ↓ y Tab."
         )
         editor_layout.addWidget(self.editor, 1)
+
+        quick = QHBoxLayout()
+        self.copy_button = QPushButton("Copy all")
+        self.copy_button.clicked.connect(self._copy_all)
+        self.clear_button = QPushButton("Clear")
+        self.clear_button.clicked.connect(self._clear_editor)
+        quick.addWidget(self.copy_button)
+        quick.addWidget(self.clear_button)
+        quick.addStretch(1)
+        editor_layout.addLayout(quick)
+
         body.addWidget(editor_card, 3)
 
-        side = QVBoxLayout()
+        self.side_widget = QWidget()
+        side = QVBoxLayout(self.side_widget)
+        side.setContentsMargins(0, 0, 0, 0)
         side.setSpacing(12)
-        body.addLayout(side, 1)
+        body.addWidget(self.side_widget, 1)
 
         candidate_card = QFrame()
         candidate_card.setObjectName("CandidateCard")
@@ -249,6 +289,39 @@ class BlackMambaTypeWindow(QMainWindow):
         self.candidates.setObjectName("Candidates")
         candidate_layout.addWidget(self.candidates)
         side.addWidget(candidate_card, 2)
+
+        emoticon_card = QFrame()
+        emoticon_card.setObjectName("EmoticonCard")
+        emoticon_layout = QVBoxLayout(emoticon_card)
+        emoticon_layout.setContentsMargins(12, 12, 12, 12)
+
+        emoticon_title = QLabel("MY EMOTICONS")
+        emoticon_title.setObjectName("Mode")
+        emoticon_layout.addWidget(emoticon_title)
+
+        self.emoticons = QListWidget()
+        self.emoticons.setObjectName("Emoticons")
+        self.emoticons.setMaximumHeight(150)
+        self.emoticons.itemDoubleClicked.connect(lambda _: self._insert_selected_emoticon())
+        emoticon_layout.addWidget(self.emoticons)
+
+        self.emoticon_input = QLineEdit()
+        self.emoticon_input.setPlaceholderText("Añade emoji o emoticon…")
+        self.emoticon_input.returnPressed.connect(self._add_emoticon)
+        emoticon_layout.addWidget(self.emoticon_input)
+
+        emoticon_actions = QHBoxLayout()
+        insert_emoticon = QPushButton("Insert")
+        insert_emoticon.clicked.connect(self._insert_selected_emoticon)
+        add_emoticon = QPushButton("+")
+        add_emoticon.clicked.connect(self._add_emoticon)
+        remove_emoticon = QPushButton("−")
+        remove_emoticon.clicked.connect(self._remove_selected_emoticon)
+        emoticon_actions.addWidget(insert_emoticon)
+        emoticon_actions.addWidget(add_emoticon)
+        emoticon_actions.addWidget(remove_emoticon)
+        emoticon_layout.addLayout(emoticon_actions)
+        side.addWidget(emoticon_card, 2)
 
         metric_row_a = QHBoxLayout()
         self.wpm_card = MetricCard("WPM")
@@ -276,7 +349,7 @@ class BlackMambaTypeWindow(QMainWindow):
         side.addWidget(spark_card)
 
         footer = QHBoxLayout()
-        self.status = QLabel("ITERATION 01 · no history is persisted yet")
+        self.status = QLabel("ITERATION 02 · themes + personal emoticon dock")
         self.status.setObjectName("Subtle")
         reset = QPushButton("Reset session")
         reset.clicked.connect(self.reset_session)
@@ -295,6 +368,14 @@ class BlackMambaTypeWindow(QMainWindow):
         self.timer.timeout.connect(self._refresh_metrics)
         self.timer.start()
 
+        self.focus_shortcut = QShortcut(QKeySequence("Ctrl+Shift+F"), self)
+        self.focus_shortcut.activated.connect(self.toggle_focus_mode)
+        self.emoticon_shortcut = QShortcut(QKeySequence("Ctrl+Shift+E"), self)
+        self.emoticon_shortcut.activated.connect(self._insert_selected_emoticon)
+        self.theme_shortcut = QShortcut(QKeySequence("Ctrl+Shift+T"), self)
+        self.theme_shortcut.activated.connect(self._cycle_theme)
+
+        self._reload_emoticons()
         self._refresh_candidates()
         self.editor.setFocus()
 
@@ -372,8 +453,80 @@ class BlackMambaTypeWindow(QMainWindow):
         self.saved_card.value.setText(str(snap.saved_keystrokes))
         self.spark.push(snap.wpm)
 
+    def _reload_emoticons(self) -> None:
+        self.emoticons.clear()
+        for emoticon in self.preferences.emoticons:
+            self.emoticons.addItem(QListWidgetItem(emoticon))
+        if self.emoticons.count():
+            self.emoticons.setCurrentRow(0)
+
+    def _insert_selected_emoticon(self) -> None:
+        item = self.emoticons.currentItem()
+        if item is None:
+            return
+        cursor = self.editor.textCursor()
+        cursor.insertText(item.text())
+        self.editor.setTextCursor(cursor)
+        self.editor.setFocus()
+        self.status.setText(f'inserted emoticon "{item.text()}"')
+
+    def _add_emoticon(self) -> None:
+        value = self.emoticon_input.text().strip()
+        if not value:
+            return
+        if value not in self.preferences.emoticons:
+            self.preferences.emoticons.append(value)
+            self.preferences.save()
+            self._reload_emoticons()
+            self.emoticons.setCurrentRow(self.preferences.emoticons.index(value))
+            self.status.setText(f'added emoticon "{value}"')
+        self.emoticon_input.clear()
+        self.editor.setFocus()
+
+    def _remove_selected_emoticon(self) -> None:
+        item = self.emoticons.currentItem()
+        if item is None:
+            return
+        value = item.text()
+        if value in self.preferences.emoticons:
+            self.preferences.emoticons.remove(value)
+            self.preferences.save()
+            self._reload_emoticons()
+            self.status.setText(f'removed emoticon "{value}"')
+
+    def _change_theme(self, theme_name: str) -> None:
+        if theme_name not in THEMES:
+            return
+        self.preferences.theme = theme_name
+        self.preferences.save()
+        QApplication.instance().setStyleSheet(build_qss(theme_name))
+        self.spark.update()
+        self.status.setText(f"theme: {theme_name}")
+
+    def _cycle_theme(self) -> None:
+        names = list(THEMES)
+        current = names.index(self.preferences.theme) if self.preferences.theme in names else 0
+        self.theme_combo.setCurrentText(names[(current + 1) % len(names)])
+
+    def toggle_focus_mode(self) -> None:
+        self._focus_mode = not self._focus_mode
+        self.side_widget.setVisible(not self._focus_mode)
+        self.focus_button.setText("Exit focus" if self._focus_mode else "Focus")
+        self.status.setText("focus mode on" if self._focus_mode else "focus mode off")
+        self.editor.setFocus()
+
+    def _copy_all(self) -> None:
+        QApplication.clipboard().setText(self.editor.toPlainText())
+        self.status.setText("copied full writer text")
+
+    def _clear_editor(self) -> None:
+        self.editor.clear()
+        self.status.setText("writer cleared")
+        self.editor.setFocus()
+
     def reset_session(self) -> None:
         self.metrics.reset(self.editor.toPlainText())
+        self.spark.values.clear()
         self.status.setText("session metrics reset")
         self._refresh_metrics()
 
@@ -381,9 +534,11 @@ class BlackMambaTypeWindow(QMainWindow):
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("BLACKMAMBA TYPE")
-    app.setStyleSheet(APP_QSS)
 
-    window = BlackMambaTypeWindow()
+    preferences = UserPreferences.load()
+    app.setStyleSheet(build_qss(preferences.theme))
+
+    window = BlackMambaTypeWindow(preferences)
     window.show()
     return app.exec()
 
