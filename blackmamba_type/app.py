@@ -368,9 +368,12 @@ class BlackMambaTypeWindow(QMainWindow):
         self.timer.timeout.connect(self._refresh_metrics)
         self.timer.start()
 
-        QShortcut(QKeySequence("Ctrl+Shift+F"), self, activated=self.toggle_focus_mode)
-        QShortcut(QKeySequence("Ctrl+Shift+E"), self, activated=self._insert_selected_emoticon)
-        QShortcut(QKeySequence("Ctrl+Shift+T"), self, activated=self._cycle_theme)
+        self.focus_shortcut = QShortcut(QKeySequence("Ctrl+Shift+F"), self)
+        self.focus_shortcut.activated.connect(self.toggle_focus_mode)
+        self.emoticon_shortcut = QShortcut(QKeySequence("Ctrl+Shift+E"), self)
+        self.emoticon_shortcut.activated.connect(self._insert_selected_emoticon)
+        self.theme_shortcut = QShortcut(QKeySequence("Ctrl+Shift+T"), self)
+        self.theme_shortcut.activated.connect(self._cycle_theme)
 
         self._reload_emoticons()
         self._refresh_candidates()
