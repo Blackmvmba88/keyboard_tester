@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .learning import GlobalTypingLearner, PersonalLexicon
 from .metrics import SessionMetrics
 from .predictor import PrefixPredictor
 from .preferences import THEMES, UserPreferences
@@ -191,14 +192,17 @@ class WriterEdit(QPlainTextEdit):
 class BlackMambaTypeWindow(QMainWindow):
     def __init__(self, preferences: UserPreferences | None = None) -> None:
         super().__init__()
-        self.setWindowTitle("BLACKMAMBA TYPE — Iteration 02")
+        self.setWindowTitle("BLACKMAMBA TYPE — Iteration 03")
         self.resize(1240, 800)
 
         self.preferences = preferences or UserPreferences.load()
-        self.predictor = PrefixPredictor()
+        self.lexicon = PersonalLexicon()
+        self.predictor = PrefixPredictor(lexicon=self.lexicon)
+        self.global_learner = GlobalTypingLearner(self.lexicon)
         self.metrics = SessionMetrics()
         self._candidate_visible = True
         self._focus_mode = False
+        self._draft_path = UserPreferences.path().parent / "draft.txt"
 
         root = QWidget()
         self.setCentralWidget(root)
@@ -212,7 +216,7 @@ class BlackMambaTypeWindow(QMainWindow):
         top_layout.setContentsMargins(16, 12, 16, 12)
         brand = QLabel("BLACKMAMBA TYPE")
         brand.setObjectName("Brand")
-        mode = QLabel("TYPE WORLD · LOCAL · ITER 02")
+        mode = QLabel("TYPE WORLD · LOCAL · ITER 03")
         mode.setObjectName("Mode")
         hint = QLabel("↑ ↓ choose · Tab / Enter accept · Esc dismiss")
         hint.setObjectName("Subtle")
@@ -231,6 +235,14 @@ class BlackMambaTypeWindow(QMainWindow):
         self.focus_button = QPushButton("Focus")
         self.focus_button.clicked.connect(self.toggle_focus_mode)
         top_layout.addWidget(self.focus_button)
+
+        self.learn_button = QPushButton("Global Learn: OFF")
+        self.learn_button.setToolTip(
+            "Opt-in. Learns normalized word frequencies from typing in other apps. "
+            "Raw keystrokes and sentences are not persisted."
+        )
+        self.learn_button.clicked.connect(self.toggle_global_learning)
+        top_layout.addWidget(self.learn_button)
         outer.addWidget(top)
 
         body = QHBoxLayout()
@@ -303,6 +315,7 @@ class BlackMambaTypeWindow(QMainWindow):
         self.emoticons.setObjectName("Emoticons")
         self.emoticons.setMaximumHeight(150)
         self.emoticons.itemDoubleClicked.connect(lambda _: self._insert_selected_emoticon())
+        self.emoticons.itemActivated.connect(lambda _: self._insert_selected_emoticon())
         emoticon_layout.addWidget(self.emoticons)
 
         self.emoticon_input = QLineEdit()
@@ -349,12 +362,24 @@ class BlackMambaTypeWindow(QMainWindow):
         side.addWidget(spark_card)
 
         footer = QHBoxLayout()
-        self.status = QLabel("ITERATION 02 · themes + personal emoticon dock")
+        self.status = QLabel("ITERATION 03 · autosave + personal lexicon + opt-in global learning")
         self.status.setObjectName("Subtle")
+        self.learned_label = QLabel(f"LEXICON · {self.lexicon.unique_words()} words")
+        self.learned_label.setObjectName("Subtle")
+
+        learn_clipboard = QPushButton("Learn clipboard")
+        learn_clipboard.clicked.connect(self._learn_clipboard)
+        self.clear_learned_button = QPushButton("Clear learned")
+        self.clear_learned_button.clicked.connect(self._clear_learned)
         reset = QPushButton("Reset session")
         reset.clicked.connect(self.reset_session)
+
         footer.addWidget(self.status)
+        footer.addSpacing(12)
+        footer.addWidget(self.learned_label)
         footer.addStretch(1)
+        footer.addWidget(learn_clipboard)
+        footer.addWidget(self.clear_learned_button)
         footer.addWidget(reset)
         outer.addLayout(footer)
 
@@ -366,7 +391,13 @@ class BlackMambaTypeWindow(QMainWindow):
         self.timer = QTimer(self)
         self.timer.setInterval(500)
         self.timer.timeout.connect(self._refresh_metrics)
+        self.timer.timeout.connect(self._poll_global_learning)
         self.timer.start()
+
+        self.autosave_timer = QTimer(self)
+        self.autosave_timer.setSingleShot(True)
+        self.autosave_timer.setInterval(700)
+        self.autosave_timer.timeout.connect(self._save_draft)
 
         self.focus_shortcut = QShortcut(QKeySequence("Ctrl+Shift+F"), self)
         self.focus_shortcut.activated.connect(self.toggle_focus_mode)
@@ -374,8 +405,13 @@ class BlackMambaTypeWindow(QMainWindow):
         self.emoticon_shortcut.activated.connect(self._insert_selected_emoticon)
         self.theme_shortcut = QShortcut(QKeySequence("Ctrl+Shift+T"), self)
         self.theme_shortcut.activated.connect(self._cycle_theme)
+        self.learn_shortcut = QShortcut(QKeySequence("Ctrl+Shift+L"), self)
+        self.learn_shortcut.activated.connect(self.toggle_global_learning)
+        self.emoticon_palette_shortcut = QShortcut(QKeySequence("Shift+Space"), self)
+        self.emoticon_palette_shortcut.activated.connect(self._focus_emoticons)
 
         self._reload_emoticons()
+        self._restore_draft()
         self._refresh_candidates()
         self.editor.setFocus()
 
@@ -389,6 +425,7 @@ class BlackMambaTypeWindow(QMainWindow):
         self._candidate_visible = True
         self._refresh_candidates()
         self._refresh_metrics()
+        self.autosave_timer.start()
 
     def _refresh_candidates(self) -> None:
         prefix = self.current_prefix()
@@ -453,6 +490,74 @@ class BlackMambaTypeWindow(QMainWindow):
         self.saved_card.value.setText(str(snap.saved_keystrokes))
         self.spark.push(snap.wpm)
 
+    def _poll_global_learning(self) -> None:
+        events = self.global_learner.drain_events()
+        if not events:
+            return
+        learned_word = None
+        status = None
+        for kind, value in events:
+            if kind == "word":
+                learned_word = value
+            elif kind == "status":
+                status = value
+
+        self.learned_label.setText(f"LEXICON · {self.lexicon.unique_words()} words")
+        if status:
+            self.status.setText(status)
+        elif learned_word:
+            self.status.setText(f'learned "{learned_word}" · local frequency only')
+
+    def toggle_global_learning(self) -> None:
+        if self.global_learner.running:
+            self.global_learner.stop()
+            self.learn_button.setText("Global Learn: OFF")
+            self.status.setText("global learning off")
+            return
+
+        ok, message = self.global_learner.start()
+        if ok:
+            self.learn_button.setText("Global Learn: ON")
+            self.status.setText(
+                "global learning on · local word frequencies only · pause for passwords/private forms"
+            )
+        else:
+            self.learn_button.setText("Global Learn: OFF")
+            self.status.setText(f"global learning unavailable: {message}")
+
+    def _learn_clipboard(self) -> None:
+        text = QApplication.clipboard().text()
+        count = self.global_learner.learn_text(text)
+        self.learned_label.setText(f"LEXICON · {self.lexicon.unique_words()} words")
+        if count:
+            self.status.setText(f"learned {count} words from clipboard")
+        else:
+            self.status.setText("clipboard had no learnable words")
+
+    def _clear_learned(self) -> None:
+        if self.clear_learned_button.text() != "Confirm clear":
+            self.clear_learned_button.setText("Confirm clear")
+            self.status.setText("press Confirm clear within 3 seconds to erase the personal lexicon")
+            QTimer.singleShot(3000, self._cancel_clear_learned)
+            return
+
+        self.lexicon.clear()
+        self.clear_learned_button.setText("Clear learned")
+        self.learned_label.setText("LEXICON · 0 words")
+        self.status.setText("personal lexicon cleared")
+
+    def _cancel_clear_learned(self) -> None:
+        if self.clear_learned_button.text() == "Confirm clear":
+            self.clear_learned_button.setText("Clear learned")
+
+    def _focus_emoticons(self) -> None:
+        if self._focus_mode:
+            self.toggle_focus_mode()
+        if self.emoticons.count() and self.emoticons.currentRow() < 0:
+            self.emoticons.setCurrentRow(0)
+        self.emoticons.setFocus()
+        self.status.setText("emoticons · ↑/↓ choose · Enter insert · Shift+Space opens")
+
     def _reload_emoticons(self) -> None:
         self.emoticons.clear()
         for emoticon in self.preferences.emoticons:
@@ -515,6 +620,26 @@ class BlackMambaTypeWindow(QMainWindow):
         self.status.setText("focus mode on" if self._focus_mode else "focus mode off")
         self.editor.setFocus()
 
+    def _restore_draft(self) -> None:
+        try:
+            if self._draft_path.exists():
+                text = self._draft_path.read_text(encoding="utf-8")
+                if text:
+                    self.editor.setPlainText(text)
+                    cursor = self.editor.textCursor()
+                    cursor.movePosition(QTextCursor.MoveOperation.End)
+                    self.editor.setTextCursor(cursor)
+                    self.status.setText("draft restored automatically")
+        except OSError:
+            self.status.setText("draft restore skipped")
+
+    def _save_draft(self) -> None:
+        try:
+            self._draft_path.parent.mkdir(parents=True, exist_ok=True)
+            self._draft_path.write_text(self.editor.toPlainText(), encoding="utf-8")
+        except OSError as exc:
+            self.status.setText(f"autosave failed: {exc}")
+
     def _copy_all(self) -> None:
         QApplication.clipboard().setText(self.editor.toPlainText())
         self.status.setText("copied full writer text")
@@ -529,6 +654,13 @@ class BlackMambaTypeWindow(QMainWindow):
         self.spark.values.clear()
         self.status.setText("session metrics reset")
         self._refresh_metrics()
+
+    def closeEvent(self, event) -> None:
+        self._save_draft()
+        self.global_learner.stop()
+        self.lexicon.flush()
+        self.preferences.save()
+        super().closeEvent(event)
 
 
 def main() -> int:

@@ -42,12 +42,12 @@ cd keyboard_tester
 
 > El repo es privado: GitHub te pedirá una sesión/credencial con acceso.
 
-### 2. Usar la Iteration 02
+### 2. Usar la Iteration 03
 
-Mientras el PR #4 no esté fusionado:
+Mientras el PR de Iteration 03 no esté fusionado:
 
 ```bash
-git checkout feat/type-iter-02-personalization
+git checkout feat/type-iter-03-global-learning
 ```
 
 Después de fusionarlo, bastará con usar la rama principal correspondiente.
@@ -104,7 +104,7 @@ python run_blackmamba_type.py
 
 Debe abrirse la interfaz gráfica de **BLACKMAMBA TYPE**.
 
-### Qué incluye Iteration 02
+### Qué incluye Iteration 03
 
 - Temas persistentes: **Mamba**, **Neon**, **Ocean** y **Paper**.
 - Dock editable **MY EMOTICONS**.
@@ -116,6 +116,11 @@ Debe abrirse la interfaz gráfica de **BLACKMAMBA TYPE**.
 - Predicción por prefijo.
 - WPM, palabras, caracteres por segundo y teclas ahorradas.
 - Sparkline de velocidad en vivo.
+- **Autosave de draft** en `~/.blackmamba_type/draft.txt`; se restaura al volver a abrir la app.
+- **Personal Lexicon** persistente en `~/.blackmamba_type/lexicon.json`.
+- **Global Learn** opcional: puede aprender frecuencias de palabras mientras escribes en otras aplicaciones.
+- El aprendizaje global guarda únicamente palabras normalizadas y frecuencias; no persiste frases completas ni un log crudo de teclas.
+- **Learn clipboard** para sembrar el diccionario con texto que tú copies explícitamente.
 
 ### Atajos
 
@@ -124,6 +129,8 @@ Debe abrirse la interfaz gráfica de **BLACKMAMBA TYPE**.
 | `Ctrl+Shift+F` | Activar/desactivar Focus mode |
 | `Ctrl+Shift+E` | Insertar emoticon seleccionado |
 | `Ctrl+Shift+T` | Cambiar al siguiente tema |
+| `Ctrl+Shift+L` | Activar/desactivar Global Learn mientras la app tiene foco |
+| `Shift+Space` | Abrir/focalizar la paleta de emoticons |
 | `↑ / ↓` | Navegar sugerencias |
 | `Tab / Enter` | Aceptar sugerencia |
 | `Esc` | Ocultar sugerencias |
@@ -171,7 +178,11 @@ Si el tester o monitor no detecta las teclas globales, permite a tu terminal/Pyt
 - **Configuración del Sistema → Privacidad y seguridad → Accesibilidad**
 - **Configuración del Sistema → Privacidad y seguridad → Monitoreo de Entrada**
 
-BLACKMAMBA TYPE puede abrir y escribir localmente sin necesitar una cuenta o servicio externo; los permisos anteriores son especialmente relevantes para las utilidades que capturan teclas fuera de la ventana.
+BLACKMAMBA TYPE puede abrir y escribir localmente sin necesitar una cuenta o servicio externo.
+
+**Global Learn está apagado por defecto.** Al activarlo, la app usa `pynput` para observar escritura fuera de su ventana y actualizar el diccionario local. No guarda el texto completo ni un historial de teclas, pero aun así debes **pausarlo al escribir contraseñas, datos privados o formularios sensibles**.
+
+Los permisos anteriores son especialmente relevantes para Global Learn y para las utilidades que capturan teclas fuera de la ventana.
 
 ---
 
@@ -234,6 +245,7 @@ Revisa permisos de Accesibilidad y Monitoreo de Entrada, cierra Terminal y vuelv
 keyboard_tester/
 ├── blackmamba_type/
 │   ├── app.py
+│   ├── learning.py
 │   ├── metrics.py
 │   ├── predictor.py
 │   └── preferences.py
@@ -250,7 +262,7 @@ keyboard_tester/
 
 - Frases rápidas y snippets personales.
 - Combinaciones de emoji/emoticons.
-- Diccionario personal aprendido por uso.
+- Frases frecuentes y snippets aprendidos por uso.
 - Métricas históricas por sesión/día/mes.
 - Modo turbo para estudiar velocidad, ráfagas, correcciones y ahorro de pulsaciones.
 - Mejoras de detección automática para múltiples diseños de teclado.
